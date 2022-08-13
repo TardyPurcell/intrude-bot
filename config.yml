@@ -1,0 +1,2 @@
+listen_addr: localhost:5701
+cq_addr: localhost:5700

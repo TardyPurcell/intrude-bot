@@ -1,13 +1,17 @@
 use regex::Regex;
 use reqwest;
 
-use crate::models::{CQEvent, Plugin};
+use crate::{
+    models::{CQEvent, Plugin},
+    AppConfig,
+};
 
 #[derive(Clone)]
 pub struct QuestionPlugin;
 
 impl QuestionPlugin {
-    pub async fn question(event: CQEvent) {
+    pub async fn question(event: CQEvent, config: AppConfig) {
+        let cq_addr = config.cq_addr;
         let msg = event.raw_message.as_ref().unwrap();
         let group_id = event.group_id.unwrap();
         let re = Regex::new(r"^[\?？¿⁇❓❔]+$").unwrap();
@@ -15,7 +19,7 @@ impl QuestionPlugin {
             return;
         }
         reqwest::get(format!(
-            "http://localhost:5700/send_group_msg?group_id={group_id}&message={msg}"
+            "http://{cq_addr}/send_group_msg?group_id={group_id}&message={msg}"
         ))
         .await
         .unwrap();
@@ -33,7 +37,7 @@ impl Plugin for QuestionPlugin {
     fn event_type(&self) -> &'static str {
         "message group"
     }
-    async fn handle(&self, event: CQEvent) {
-        Self::question(event).await;
+    async fn handle(&self, event: CQEvent, config: AppConfig) {
+        Self::question(event, config).await;
     }
 }

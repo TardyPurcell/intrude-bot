@@ -3,8 +3,24 @@ mod plugins;
 use actix_web::{post, web, App, HttpServer, Responder};
 use models::Bot;
 use plugins::*;
+use serde::{Deserialize, Serialize};
 
 use crate::models::CQEvent;
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AppConfig {
+    pub listen_addr: String,
+    pub cq_addr: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        AppConfig {
+            listen_addr: "127.0.0.1:5701".to_string(),
+            cq_addr: "127.0.0.1:5700".to_string(),
+        }
+    }
+}
 
 #[post("/")]
 async fn handle_event(event: web::Json<CQEvent>, bot: web::Data<Bot>) -> impl Responder {
@@ -21,15 +37,21 @@ async fn handle_event(event: web::Json<CQEvent>, bot: web::Data<Bot>) -> impl Re
 
 #[actix_web::main]
 async fn main() {
-    let mut bot = Bot::new();
+    let cfg: AppConfig = confy::load("config").unwrap();
+    let listen_addr = cfg.listen_addr.clone();
+    let mut bot = Bot::new(cfg.clone());
+
     bot.register_plugin(EchoPlugin);
     bot.register_plugin(QuestionPlugin);
+    bot.register_plugin(ArchivePlugin);
+
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(bot.clone()))
+            .app_data(web::Data::new(cfg.clone()))
             .service(handle_event)
     })
-    .bind("127.0.0.1:5701")
+    .bind(listen_addr)
     .unwrap()
     .run()
     .await
