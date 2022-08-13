@@ -66,11 +66,15 @@ impl ArchivePlugin {
         }
         let resp = format!("{operator_name} 撤回了 {user_name} 的消息：{recalled_msg}");
         println!("{}", resp);
-        reqwest::get(format!(
-            "http://{cq_addr}/send_group_msg?group_id={group_id}&message={resp}"
-        ))
-        .await
-        .unwrap();
+        reqwest::Client::new()
+            .post(format!("http://{cq_addr}/send_group_msg"))
+            .json(&Req {
+                group_id,
+                message: resp,
+            })
+            .send()
+            .await
+            .unwrap();
     }
 }
 

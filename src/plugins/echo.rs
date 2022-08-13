@@ -1,5 +1,6 @@
 use regex::Regex;
 use reqwest;
+use serde::Serialize;
 
 use crate::{
     models::{CQEvent, Plugin},
@@ -19,11 +20,15 @@ impl EchoPlugin {
             return;
         }
         let content = re.replace_all(&msg, "$content").to_string();
-        reqwest::get(format!(
-            "http://{cq_addr}/send_group_msg?group_id={group_id}&message={content}"
-        ))
-        .await
-        .unwrap();
+        reqwest::Client::new()
+            .post(format!("http://{cq_addr}/send_group_msg"))
+            .json(&Req {
+                group_id,
+                message: content,
+            })
+            .send()
+            .await
+            .unwrap();
     }
 }
 
@@ -41,4 +46,10 @@ impl Plugin for EchoPlugin {
     async fn handle(&self, event: CQEvent, config: AppConfig) {
         Self::echo(event, config).await
     }
+}
+
+#[derive(Serialize)]
+struct Req {
+    group_id: i64,
+    message: String,
 }
