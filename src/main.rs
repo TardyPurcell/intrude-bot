@@ -41,9 +41,9 @@ async fn main() {
     let listen_addr = cfg.listen_addr.clone();
     let mut bot = Bot::new(cfg.clone());
 
-    bot.register_plugin(EchoPlugin);
-    bot.register_plugin(QuestionPlugin);
-    bot.register_plugin(ArchivePlugin);
+    bot.register_plugin(EchoPlugin::new(None));
+    bot.register_plugin(QuestionPlugin::new(None));
+    bot.register_plugin(ArchivePlugin::new(None));
 
     HttpServer::new(move || {
         App::new()

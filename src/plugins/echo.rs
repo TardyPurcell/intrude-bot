@@ -8,9 +8,19 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct EchoPlugin;
+pub struct EchoPluginConfig;
+
+#[derive(Clone)]
+pub struct EchoPlugin {
+    _config: EchoPluginConfig,
+}
 
 impl EchoPlugin {
+    pub fn new(config: Option<EchoPluginConfig>) -> Self {
+        EchoPlugin {
+            _config: config.unwrap_or(EchoPluginConfig),
+        }
+    }
     async fn echo(event: CQEvent, config: AppConfig) {
         let cq_addr = config.cq_addr;
         let msg = event.raw_message.as_ref().unwrap();
