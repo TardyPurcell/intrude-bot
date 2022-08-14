@@ -18,13 +18,13 @@ struct QuestionPluginState {
 #[derive(Clone)]
 pub struct QuestionPluginConfig {
     // ignore_limit: Arc<Mutex<usize>>,
-    sleep_seconds: Arc<Mutex<i64>>,
+    pub sleep_seconds: i64,
 }
 
 #[derive(Clone)]
 pub struct QuestionPlugin {
     state: QuestionPluginState,
-    config: QuestionPluginConfig,
+    config: Arc<Mutex<QuestionPluginConfig>>,
 }
 
 impl QuestionPlugin {
@@ -35,9 +35,9 @@ impl QuestionPlugin {
                 // ignored_cnt: Arc::new(Mutex::new(0)),
                 last_question_timestamp: Arc::new(Mutex::new(0)),
             },
-            config: config.unwrap_or(QuestionPluginConfig {
-                sleep_seconds: Arc::new(Mutex::new(0)),
-            }),
+            config: Arc::new(Mutex::new(
+                config.unwrap_or(QuestionPluginConfig { sleep_seconds: 10 }),
+            )),
         }
     }
     async fn question(&self, event: CQEvent, app_config: AppConfig) {
@@ -56,7 +56,7 @@ impl QuestionPlugin {
         // *ignored_cnt = 0;
         let now_timestamp = chrono::Utc::now().timestamp();
         let last_question_timestamp = self.state.last_question_timestamp.lock().await;
-        if now_timestamp - *last_question_timestamp < *self.config.sleep_seconds.lock().await {
+        if now_timestamp - *last_question_timestamp < self.config.lock().await.sleep_seconds {
             return;
         }
         reqwest::get(format!(

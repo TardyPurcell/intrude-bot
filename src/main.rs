@@ -42,7 +42,9 @@ async fn main() {
     let mut bot = Bot::new(cfg.clone());
 
     bot.register_plugin(EchoPlugin::new(None));
-    bot.register_plugin(QuestionPlugin::new(None));
+    bot.register_plugin(QuestionPlugin::new(Some(QuestionPluginConfig {
+        sleep_seconds: 0,
+    })));
     bot.register_plugin(ArchivePlugin::new(None));
 
     HttpServer::new(move || {
