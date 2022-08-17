@@ -55,10 +55,11 @@ impl QuestionPlugin {
         // }
         // *ignored_cnt = 0;
         let now_timestamp = chrono::Utc::now().timestamp();
-        let last_question_timestamp = self.state.last_question_timestamp.lock().await;
+        let mut last_question_timestamp = self.state.last_question_timestamp.lock().await;
         if now_timestamp - *last_question_timestamp < self.config.lock().await.sleep_seconds {
             return;
         }
+        *last_question_timestamp = now_timestamp;
         reqwest::get(format!(
             "http://{cq_addr}/send_group_msg?group_id={group_id}&message={msg}"
         ))

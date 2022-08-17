@@ -43,9 +43,9 @@ async fn main() {
 
     bot.register_plugin(EchoPlugin::new(None));
     bot.register_plugin(QuestionPlugin::new(Some(QuestionPluginConfig {
-        sleep_seconds: 0,
+        sleep_seconds: 30,
     })));
-    bot.register_plugin(ArchivePlugin::new(None));
+    // bot.register_plugin(ArchivePlugin::new(None));
 
     HttpServer::new(move || {
         App::new()
