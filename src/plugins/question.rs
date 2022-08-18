@@ -1,13 +1,10 @@
 use futures::lock::Mutex;
+use serde_json::json;
 use std::sync::Arc;
 
 use regex::Regex;
-use reqwest;
 
-use crate::{
-    models::{CQEvent, Plugin},
-    AppConfig,
-};
+use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
 
 #[derive(Clone)]
 struct QuestionPluginState {
@@ -21,7 +18,7 @@ pub struct QuestionPluginConfig {
     pub sleep_seconds: i64,
 }
 
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct QuestionPlugin {
     state: QuestionPluginState,
     config: Arc<Mutex<QuestionPluginConfig>>,
@@ -40,8 +37,7 @@ impl QuestionPlugin {
             )),
         }
     }
-    async fn question(&self, event: CQEvent, app_config: AppConfig) {
-        let cq_addr = app_config.cq_addr;
+    async fn question(&self, event: CQEvent, bot: &Bot) {
         let msg = event.raw_message.as_ref().unwrap();
         let group_id = event.group_id.unwrap();
         let re = Regex::new(r"^[\?？¿⁇❓❔]+$").unwrap();
@@ -60,11 +56,14 @@ impl QuestionPlugin {
             return;
         }
         *last_question_timestamp = now_timestamp;
-        reqwest::get(format!(
-            "http://{cq_addr}/send_group_msg?group_id={group_id}&message={msg}"
-        ))
-        .await
-        .unwrap();
+        bot.api_request(
+            "send_group_msg",
+            json!({
+                "group_id": group_id,
+                "message": msg,
+            }),
+        )
+        .await;
     }
 }
 
@@ -76,10 +75,10 @@ impl Plugin for QuestionPlugin {
     fn help(&self) -> &'static str {
         "自动复读问号"
     }
-    fn event_type(&self) -> &'static str {
-        "message group"
+    fn senario(&self) -> PluginSenario {
+        PluginSenario::Group
     }
-    async fn handle(&self, event: CQEvent, config: AppConfig) {
-        self.question(event, config).await;
+    async fn handle(&self, event: CQEvent, bot: &Bot) {
+        self.question(event, bot).await;
     }
 }

@@ -1,27 +1,12 @@
 mod models;
 mod plugins;
 use actix_web::{post, web, App, HttpServer, Responder};
-use futures::{channel::mpsc::Sender, SinkExt};
-use models::Bot;
+use models::{AppConfig, Bot};
 use plugins::*;
-use serde::{Deserialize, Serialize};
+
+use std::sync::mpsc::Sender;
 
 use crate::models::CQEvent;
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct AppConfig {
-    pub listen_addr: String,
-    pub cq_addr: String,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        AppConfig {
-            listen_addr: "127.0.0.1:5701".to_string(),
-            cq_addr: "127.0.0.1:5700".to_string(),
-        }
-    }
-}
 
 #[post("/")]
 async fn handle_event(event: web::Json<CQEvent>, tx: web::Data<Sender<CQEvent>>) -> impl Responder {
@@ -40,7 +25,8 @@ async fn handle_event(event: web::Json<CQEvent>, tx: web::Data<Sender<CQEvent>>)
 async fn main() {
     let cfg: AppConfig = confy::load("config").unwrap();
     let listen_addr = cfg.listen_addr.clone();
-    let mut bot = Bot::new(cfg.clone());
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut bot = Bot::new(rx, cfg.clone());
 
     bot.register_plugin(EchoPlugin::new(None));
     bot.register_plugin(QuestionPlugin::new(Some(QuestionPluginConfig {
@@ -48,10 +34,15 @@ async fn main() {
     })));
     // bot.register_plugin(ArchivePlugin::new(None));
 
-    HttpServer::new(move || App::new().service(handle_event))
-        .bind(listen_addr)
-        .unwrap()
-        .run()
-        .await
-        .unwrap();
+    // bot.run();
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(tx.clone()))
+            .service(handle_event)
+    })
+    .bind(listen_addr)
+    .unwrap()
+    .run()
+    .await
+    .unwrap();
 }
