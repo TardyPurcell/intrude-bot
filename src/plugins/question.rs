@@ -18,7 +18,6 @@ pub struct QuestionPluginConfig {
     pub sleep_seconds: i64,
 }
 
-// #[derive(Clone)]
 pub struct QuestionPlugin {
     state: QuestionPluginState,
     config: Arc<Mutex<QuestionPluginConfig>>,

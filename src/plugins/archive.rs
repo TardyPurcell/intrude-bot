@@ -7,7 +7,6 @@ use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
 #[derive(Clone)]
 pub struct ArchivePluginConfig;
 
-#[derive(Clone)]
 pub struct ArchivePlugin {
     _config: ArchivePluginConfig,
 }

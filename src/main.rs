@@ -18,6 +18,7 @@ async fn handle_event(event: web::Json<CQEvent>, tx: web::Data<Sender<CQEvent>>)
     //     "meta_event" => bot.handle_meta_event(event).await,
     //     _ => (),
     // }
+    tx.send(event).unwrap();
     "ok"
 }
 
@@ -34,7 +35,9 @@ async fn main() {
     })));
     // bot.register_plugin(ArchivePlugin::new(None));
 
-    // bot.run();
+    std::thread::spawn(|| {
+        bot.run();
+    });
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(tx.clone()))

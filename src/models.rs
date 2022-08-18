@@ -81,7 +81,7 @@ pub trait Plugin {
 
 // #[derive(Clone)]
 pub struct Bot {
-    plugins: Vec<Box<dyn Plugin + Sync>>,
+    plugins: Vec<Box<dyn Plugin>>,
     config: AppConfig,
     event_receiver: Receiver<CQEvent>,
     client: reqwest::Client,
@@ -96,7 +96,7 @@ impl Bot {
             client: reqwest::Client::new(),
         }
     }
-    pub fn register_plugin(&mut self, plugin: impl Plugin + 'static + Sync) {
+    pub fn register_plugin(&mut self, plugin: impl Plugin + 'static) {
         self.plugins.push(Box::new(plugin));
     }
     pub fn run(&self) {

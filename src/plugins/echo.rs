@@ -6,7 +6,6 @@ use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
 #[derive(Clone)]
 pub struct EchoPluginConfig;
 
-// #[derive(Clone)]
 pub struct EchoPlugin {
     _config: EchoPluginConfig,
 }
