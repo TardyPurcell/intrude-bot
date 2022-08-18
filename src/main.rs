@@ -1,6 +1,7 @@
 mod models;
 mod plugins;
 use actix_web::{post, web, App, HttpServer, Responder};
+use futures::{channel::mpsc::Sender, SinkExt};
 use models::Bot;
 use plugins::*;
 use serde::{Deserialize, Serialize};
@@ -23,15 +24,15 @@ impl Default for AppConfig {
 }
 
 #[post("/")]
-async fn handle_event(event: web::Json<CQEvent>, bot: web::Data<Bot>) -> impl Responder {
+async fn handle_event(event: web::Json<CQEvent>, tx: web::Data<Sender<CQEvent>>) -> impl Responder {
     let event = event.into_inner();
-    match event.post_type.as_str() {
-        "message" => bot.handle_message(event).await,
-        "request" => bot.handle_request(event).await,
-        "notice" => bot.handle_notice(event).await,
-        "meta_event" => bot.handle_meta_event(event).await,
-        _ => (),
-    }
+    // match event.post_type.as_str() {
+    //     "message" => bot.handle_message(event).await,
+    //     "request" => bot.handle_request(event).await,
+    //     "notice" => bot.handle_notice(event).await,
+    //     "meta_event" => bot.handle_meta_event(event).await,
+    //     _ => (),
+    // }
     "ok"
 }
 
@@ -47,15 +48,10 @@ async fn main() {
     })));
     // bot.register_plugin(ArchivePlugin::new(None));
 
-    HttpServer::new(move || {
-        App::new()
-            .app_data(web::Data::new(bot.clone()))
-            .app_data(web::Data::new(cfg.clone()))
-            .service(handle_event)
-    })
-    .bind(listen_addr)
-    .unwrap()
-    .run()
-    .await
-    .unwrap();
+    HttpServer::new(move || App::new().service(handle_event))
+        .bind(listen_addr)
+        .unwrap()
+        .run()
+        .await
+        .unwrap();
 }

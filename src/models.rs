@@ -30,34 +30,41 @@ pub struct CQEvent {
     pub operator_id: Option<i64>,
 }
 
+pub enum CQEventType {
+    Message(CQEvent),
+    Request(CQEvent),
+    Notice(CQEvent),
+    MetaEvent(CQEvent),
+}
+
 #[async_trait::async_trait]
-pub trait Plugin: PluginClone {
+pub trait Plugin {
     fn name(&self) -> &'static str;
     fn help(&self) -> &'static str;
     fn event_type(&self) -> &'static str;
     async fn handle(&self, event: CQEvent, config: AppConfig) -> ();
 }
 
-pub trait PluginClone {
-    fn clone_box(&self) -> Box<dyn Plugin + Send>;
-}
+// pub trait PluginClone {
+//     fn clone_box(&self) -> Box<dyn Plugin + Send>;
+// }
 
-impl<T> PluginClone for T
-where
-    T: 'static + Plugin + Clone + Send,
-{
-    fn clone_box(&self) -> Box<dyn Plugin + Send> {
-        Box::new(self.clone())
-    }
-}
+// impl<T> PluginClone for T
+// where
+//     T: 'static + Plugin + Clone + Send,
+// {
+//     fn clone_box(&self) -> Box<dyn Plugin + Send> {
+//         Box::new(self.clone())
+//     }
+// }
 
-impl Clone for Box<dyn Plugin + Send> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
+// impl Clone for Box<dyn Plugin + Send> {
+//     fn clone(&self) -> Self {
+//         self.clone_box()
+//     }
+// }
 
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct Bot {
     plugins: Vec<Box<dyn Plugin + Send>>,
     config: AppConfig,
