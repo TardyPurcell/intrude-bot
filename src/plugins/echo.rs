@@ -1,16 +1,11 @@
 use regex::Regex;
-use reqwest;
 use serde::Serialize;
 
-use crate::{
-    models::{CQEvent, Plugin},
-    AppConfig,
-};
+use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
 
 #[derive(Clone)]
 pub struct EchoPluginConfig;
 
-#[derive(Clone)]
 pub struct EchoPlugin {
     _config: EchoPluginConfig,
 }
@@ -21,8 +16,7 @@ impl EchoPlugin {
             _config: config.unwrap_or(EchoPluginConfig),
         }
     }
-    async fn echo(event: CQEvent, config: AppConfig) {
-        let cq_addr = config.cq_addr;
+    async fn echo(&self, event: CQEvent, bot: &Bot) {
         let msg = event.raw_message.as_ref().unwrap();
         let group_id = event.group_id.unwrap();
         let re = Regex::new(r"^(?P<cmd>>echo)\s+(?P<content>.*)$").unwrap();
@@ -30,15 +24,14 @@ impl EchoPlugin {
             return;
         }
         let content = re.replace_all(&msg, "$content").to_string();
-        reqwest::Client::new()
-            .post(format!("http://{cq_addr}/send_group_msg"))
-            .json(&Req {
+        bot.api_request(
+            "send_group_msg",
+            &Req {
                 group_id,
                 message: content,
-            })
-            .send()
-            .await
-            .unwrap();
+            },
+        )
+        .await;
     }
 }
 
@@ -50,11 +43,14 @@ impl Plugin for EchoPlugin {
     fn help(&self) -> &'static str {
         "复读机"
     }
-    fn event_type(&self) -> &'static str {
-        "message group"
+    fn senario(&self) -> PluginSenario {
+        PluginSenario::Both
     }
-    async fn handle(&self, event: CQEvent, config: AppConfig) {
-        Self::echo(event, config).await
+    async fn handle(&self, event: CQEvent, bot: &Bot) {
+        match event.post_type.as_str() {
+            "message" => self.echo(event, bot).await,
+            _ => (),
+        }
     }
 }
 

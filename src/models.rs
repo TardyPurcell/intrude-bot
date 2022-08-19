@@ -1,7 +1,22 @@
 use regex::Regex;
+use reqwest::Response;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::Receiver;
 
-use crate::AppConfig;
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AppConfig {
+    pub listen_addr: String,
+    pub cq_addr: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        AppConfig {
+            listen_addr: "127.0.0.1:5701".to_string(),
+            cq_addr: "127.0.0.1:5700".to_string(),
+        }
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CQEvent {
     pub time: i64,
@@ -30,65 +45,108 @@ pub struct CQEvent {
     pub operator_id: Option<i64>,
 }
 
+#[derive(PartialEq)]
+#[allow(dead_code)]
+pub enum PluginSenario {
+    Private,
+    Group,
+    Both,
+}
+
 #[async_trait::async_trait]
-pub trait Plugin: PluginClone {
+pub trait Plugin {
     fn name(&self) -> &'static str;
     fn help(&self) -> &'static str;
-    fn event_type(&self) -> &'static str;
-    async fn handle(&self, event: CQEvent, config: AppConfig) -> ();
+    fn senario(&self) -> PluginSenario;
+    async fn handle(&self, event: CQEvent, bot: &Bot) -> ();
 }
 
-pub trait PluginClone {
-    fn clone_box(&self) -> Box<dyn Plugin + Send>;
-}
+// pub trait PluginClone {
+//     fn clone_box(&self) -> Box<dyn Plugin + Send>;
+// }
 
-impl<T> PluginClone for T
-where
-    T: 'static + Plugin + Clone + Send,
-{
-    fn clone_box(&self) -> Box<dyn Plugin + Send> {
-        Box::new(self.clone())
-    }
-}
+// impl<T> PluginClone for T
+// where
+//     T: 'static + Plugin + Clone + Send,
+// {
+//     fn clone_box(&self) -> Box<dyn Plugin + Send> {
+//         Box::new(self.clone())
+//     }
+// }
 
-impl Clone for Box<dyn Plugin + Send> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
+// impl Clone for Box<dyn Plugin + Send> {
+//     fn clone(&self) -> Self {
+//         self.clone_box()
+//     }
+// }
 
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct Bot {
-    plugins: Vec<Box<dyn Plugin + Send>>,
+    plugins: Vec<Box<dyn Plugin + Send + Sync>>,
     config: AppConfig,
+    event_receiver: Receiver<CQEvent>,
+    client: reqwest::Client,
 }
 
 impl Bot {
-    pub fn register_plugin(&mut self, plugin: impl Plugin + 'static + Send) {
-        self.plugins.push(Box::new(plugin));
-    }
-    pub async fn handle_message(&self, event: CQEvent) {
-        match event.message_type.clone().unwrap().as_str() {
-            "group" => self.handle_group_message(event).await,
-            "private" => self.handle_private_message(event).await,
-            _ => (),
+    pub fn new(rx: Receiver<CQEvent>, cfg: AppConfig) -> Self {
+        Bot {
+            plugins: Vec::new(),
+            config: cfg,
+            event_receiver: rx,
+            client: reqwest::Client::new(),
         }
     }
-    async fn handle_group_help(&self, event: CQEvent) {
+    pub fn register_plugin(&mut self, plugin: impl Plugin + Send + Sync + 'static) {
+        self.plugins.push(Box::new(plugin));
+    }
+    pub async fn run(&mut self) {
+        loop {
+            let event = self.event_receiver.recv().await.unwrap();
+            self.handle_help(event.clone()).await;
+            for plugin in &self.plugins {
+                // let config = self.config.clone();
+                plugin.handle(event.clone(), self).await;
+            }
+        }
+    }
+    pub async fn api_request(&self, api: &str, json: impl Serialize) -> Response {
+        self.client
+            .post(format!(
+                "http://{cq_addr}/{api}",
+                cq_addr = self.config.cq_addr
+            ))
+            .json(&json)
+            .send()
+            .await
+            .unwrap()
+    }
+    async fn handle_help(&self, event: CQEvent) {
+        if event.post_type != "message" {
+            return;
+        }
         let msg = event.raw_message.as_ref().unwrap();
-        let group_id = event.group_id.unwrap();
         let re = Regex::new(r"^(?P<cmd>>help)($|\s+(?P<content>.*)$)").unwrap();
         if !re.is_match(msg) {
             return;
         }
+        let CQEvent {
+            group_id,
+            user_id,
+            message_type,
+            ..
+        } = event;
+        let message_type = match message_type.unwrap().as_str() {
+            "private" => PluginSenario::Private,
+            "group" => PluginSenario::Group,
+            _ => unreachable!(),
+        };
         let mut resp = String::new();
         let content = re.replace_all(&msg, "$content").to_string();
         match content.as_str() {
             "" => {
                 for plugin in self.plugins.iter() {
-                    if plugin.event_type() == "message group"
-                        || plugin.event_type() == "notice group"
-                    {
+                    if plugin.senario() == message_type || plugin.senario() == PluginSenario::Both {
                         resp.push_str(format!("{}: {}\r\n", plugin.name(), plugin.help()).as_str());
                     }
                 }
@@ -98,7 +156,9 @@ impl Bot {
             }
             _ => {
                 for plugin in self.plugins.iter() {
-                    if plugin.name() == content {
+                    if (plugin.senario() == message_type || plugin.senario() == PluginSenario::Both)
+                        && plugin.name() == content
+                    {
                         resp.push_str(format!("{}: {}\r\n", plugin.name(), plugin.help()).as_str());
                     }
                 }
@@ -107,47 +167,42 @@ impl Bot {
                 }
             }
         }
-        let cq_addr = &self.config.cq_addr;
-        reqwest::Client::new()
-            .post(format!("http://{cq_addr}/send_group_msg"))
-            .json(&SendGroupMsgReq {
-                group_id,
-                message: resp,
-            })
-            .send()
-            .await
-            .unwrap();
-    }
-    async fn handle_group_message(&self, event: CQEvent) {
-        // println!("{:?}", event);
-        self.handle_group_help(event.clone()).await;
-        for plugin in &self.plugins {
-            if plugin.event_type() == "message group" {
-                plugin.handle(event.clone(), self.config.clone()).await;
+        match message_type {
+            PluginSenario::Private => {
+                self.api_request(
+                    "send_msg",
+                    SendPrivateMsgReq {
+                        user_id: user_id.unwrap(),
+                        message: resp,
+                    },
+                )
+                .await;
             }
-        }
-    }
-    async fn handle_private_message(&self, _event: CQEvent) {}
-    pub fn new(cfg: AppConfig) -> Self {
-        Bot {
-            plugins: Vec::new(),
-            config: cfg,
-        }
-    }
-    pub async fn handle_request(&self, _event: CQEvent) {}
-    pub async fn handle_notice(&self, event: CQEvent) {
-        // println!("{:?}", event);
-        for plugin in &self.plugins {
-            if plugin.event_type() == "notice group" || plugin.event_type() == "notice private" {
-                plugin.handle(event.clone(), self.config.clone()).await;
+            PluginSenario::Group => {
+                self.api_request(
+                    "send_group_msg",
+                    SendGroupMsgReq {
+                        group_id: group_id.unwrap(),
+                        message: resp,
+                    },
+                )
+                .await;
             }
+            _ => unreachable!(),
         }
     }
-    pub async fn handle_meta_event(&self, _event: CQEvent) {}
 }
+
+unsafe impl Sync for Bot {}
 
 #[derive(Serialize)]
 struct SendGroupMsgReq {
     group_id: i64,
+    message: String,
+}
+
+#[derive(Serialize)]
+struct SendPrivateMsgReq {
+    user_id: i64,
     message: String,
 }
