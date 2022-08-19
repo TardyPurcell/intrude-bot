@@ -46,6 +46,7 @@ pub struct CQEvent {
 }
 
 #[derive(PartialEq)]
+#[allow(dead_code)]
 pub enum PluginSenario {
     Private,
     Group,
@@ -81,7 +82,7 @@ pub trait Plugin {
 
 // #[derive(Clone)]
 pub struct Bot {
-    plugins: Vec<Box<dyn Plugin>>,
+    plugins: Vec<Box<dyn Plugin + Send + Sync>>,
     config: AppConfig,
     event_receiver: Receiver<CQEvent>,
     client: reqwest::Client,
@@ -96,15 +97,15 @@ impl Bot {
             client: reqwest::Client::new(),
         }
     }
-    pub fn register_plugin(&mut self, plugin: impl Plugin + 'static) {
+    pub fn register_plugin(&mut self, plugin: impl Plugin + Send + Sync + 'static) {
         self.plugins.push(Box::new(plugin));
     }
-    pub fn run(&self) {
+    pub async fn run(&self) {
         loop {
             let event = self.event_receiver.recv().unwrap();
             for plugin in &self.plugins {
                 // let config = self.config.clone();
-                plugin.handle(event, self);
+                plugin.handle(event.clone(), self).await;
             }
         }
     }
