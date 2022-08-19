@@ -146,8 +146,11 @@ impl Plugin for ArchivePlugin {
     fn name(&self) -> &'static str {
         "archive"
     }
-    fn help(&self) -> &'static str {
+    fn description(&self) -> &'static str {
         "自动复读已撤回的消息"
+    }
+    fn help(&self) -> &'static str {
+        ">archive toggle 开启或关闭撤回记录"
     }
     fn senario(&self) -> PluginSenario {
         PluginSenario::Group

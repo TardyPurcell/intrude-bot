@@ -56,6 +56,7 @@ pub enum PluginSenario {
 #[async_trait::async_trait]
 pub trait Plugin {
     fn name(&self) -> &'static str;
+    fn description(&self) -> &'static str;
     fn help(&self) -> &'static str;
     fn senario(&self) -> PluginSenario;
     async fn handle(&self, event: CQEvent, bot: &Bot) -> ();

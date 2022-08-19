@@ -68,8 +68,11 @@ impl Plugin for QuestionPlugin {
     fn name(&self) -> &'static str {
         "question"
     }
-    fn help(&self) -> &'static str {
+    fn description(&self) -> &'static str {
         "自动复读问号"
+    }
+    fn help(&self) -> &'static str {
+        ""
     }
     fn senario(&self) -> PluginSenario {
         PluginSenario::Group

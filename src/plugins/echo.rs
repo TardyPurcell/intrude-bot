@@ -40,8 +40,11 @@ impl Plugin for EchoPlugin {
     fn name(&self) -> &'static str {
         "echo"
     }
-    fn help(&self) -> &'static str {
+    fn description(&self) -> &'static str {
         "复读机"
+    }
+    fn help(&self) -> &'static str {
+        ">echo <复读内容>"
     }
     fn senario(&self) -> PluginSenario {
         PluginSenario::Both
