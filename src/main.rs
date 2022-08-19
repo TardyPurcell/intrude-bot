@@ -22,7 +22,7 @@ async fn handle_event(event: web::Json<CQEvent>, tx: web::Data<Sender<CQEvent>>)
     "ok"
 }
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() {
     let cfg: AppConfig = confy::load("config").unwrap();
     let listen_addr = cfg.listen_addr.clone();
@@ -35,8 +35,8 @@ async fn main() {
     })));
     // bot.register_plugin(ArchivePlugin::new(None));
 
-    std::thread::spawn(|| {
-        bot.run();
+    tokio::spawn(async move  {
+        bot.run().await;
     });
     HttpServer::new(move || {
         App::new()
