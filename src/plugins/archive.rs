@@ -1,24 +1,33 @@
 use chrono::{Local, TimeZone};
+use log::debug;
+use regex::Regex;
 use serde::Deserialize;
 use serde_json::json;
+use tokio::sync::RwLock;
 
 use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
 
 #[derive(Clone)]
 pub struct ArchivePluginConfig;
 
+struct ArchivePluginState {
+    is_enable: bool,
+}
+
 pub struct ArchivePlugin {
+    state: RwLock<ArchivePluginState>,
     _config: ArchivePluginConfig,
 }
 
 impl ArchivePlugin {
     pub fn new(config: Option<ArchivePluginConfig>) -> Self {
         ArchivePlugin {
+            state: RwLock::new(ArchivePluginState { is_enable: false }),
             _config: config.unwrap_or(ArchivePluginConfig),
         }
     }
     async fn archive(&self, event: CQEvent, bot: &Bot) {
-        if event.notice_type.as_ref().unwrap() != "group_recall" {
+        if !self.state.read().await.is_enable {
             return;
         }
         let CQEvent {
@@ -107,6 +116,29 @@ impl ArchivePlugin {
         )
         .await;
     }
+    async fn toggle(&self, event: CQEvent, bot: &Bot) {
+        let re = Regex::new(r"^>archive\s+toggle\s*$").unwrap();
+        let msg = event.raw_message.unwrap();
+        if re.is_match(&msg) {
+            let mut state = self.state.write().await;
+            state.is_enable = !state.is_enable;
+            if state.is_enable {
+                bot.api_request(
+                    "send_group_msg",
+                    json!({"group_id": event.group_id.unwrap(), "message": "撤回记录已开启"}),
+                )
+                .await;
+            } else {
+                bot.api_request(
+                    "send_group_msg",
+                    json!({"group_id": event.group_id.unwrap(), "message": "撤回记录已关闭"}),
+                )
+                .await;
+            }
+        } else {
+            debug!("failure");
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -121,7 +153,17 @@ impl Plugin for ArchivePlugin {
         PluginSenario::Group
     }
     async fn handle(&self, event: CQEvent, bot: &Bot) {
-        self.archive(event, bot).await;
+        match event.post_type.as_str() {
+            "notice" => match event.notice_type.as_ref().unwrap().as_str() {
+                "group_recall" => self.archive(event, bot).await,
+                _ => (),
+            },
+            "message" => match event.message_type.as_ref().unwrap().as_str() {
+                "group" => self.toggle(event, bot).await,
+                _ => (),
+            },
+            _ => (),
+        }
     }
 }
 

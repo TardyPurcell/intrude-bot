@@ -47,7 +47,10 @@ impl Plugin for EchoPlugin {
         PluginSenario::Both
     }
     async fn handle(&self, event: CQEvent, bot: &Bot) {
-        self.echo(event, bot).await;
+        match event.post_type.as_str() {
+            "message" => self.echo(event, bot).await,
+            _ => (),
+        }
     }
 }
 

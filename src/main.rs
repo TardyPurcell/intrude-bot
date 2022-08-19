@@ -3,8 +3,7 @@ mod plugins;
 use actix_web::{post, web, App, HttpServer, Responder};
 use models::{AppConfig, Bot};
 use plugins::*;
-
-use std::sync::mpsc::Sender;
+use tokio::sync::mpsc::{self, Sender};
 
 use crate::models::CQEvent;
 
@@ -18,7 +17,7 @@ async fn handle_event(event: web::Json<CQEvent>, tx: web::Data<Sender<CQEvent>>)
     //     "meta_event" => bot.handle_meta_event(event).await,
     //     _ => (),
     // }
-    tx.send(event).unwrap();
+    tx.send(event).await.unwrap();
     "ok"
 }
 
@@ -26,16 +25,16 @@ async fn handle_event(event: web::Json<CQEvent>, tx: web::Data<Sender<CQEvent>>)
 async fn main() {
     let cfg: AppConfig = confy::load("config").unwrap();
     let listen_addr = cfg.listen_addr.clone();
-    let (tx, rx) = std::sync::mpsc::channel();
+    let (tx, rx) = mpsc::channel(100);
     let mut bot = Bot::new(rx, cfg.clone());
 
     bot.register_plugin(EchoPlugin::new(None));
     bot.register_plugin(QuestionPlugin::new(Some(QuestionPluginConfig {
         sleep_seconds: 30,
     })));
-    // bot.register_plugin(ArchivePlugin::new(None));
+    bot.register_plugin(ArchivePlugin::new(None));
 
-    tokio::spawn(async move  {
+    tokio::spawn(async move {
         bot.run().await;
     });
     HttpServer::new(move || {

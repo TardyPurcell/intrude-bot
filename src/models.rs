@@ -1,7 +1,7 @@
 use regex::Regex;
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
-use std::sync::mpsc::Receiver;
+use tokio::sync::mpsc::Receiver;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -100,9 +100,10 @@ impl Bot {
     pub fn register_plugin(&mut self, plugin: impl Plugin + Send + Sync + 'static) {
         self.plugins.push(Box::new(plugin));
     }
-    pub async fn run(&self) {
+    pub async fn run(&mut self) {
         loop {
-            let event = self.event_receiver.recv().unwrap();
+            let event = self.event_receiver.recv().await.unwrap();
+            self.handle_help(event.clone()).await;
             for plugin in &self.plugins {
                 // let config = self.config.clone();
                 plugin.handle(event.clone(), self).await;
@@ -112,7 +113,7 @@ impl Bot {
     pub async fn api_request(&self, api: &str, json: impl Serialize) -> Response {
         self.client
             .post(format!(
-                "https://{cq_addr}/{api}",
+                "http://{cq_addr}/{api}",
                 cq_addr = self.config.cq_addr
             ))
             .json(&json)

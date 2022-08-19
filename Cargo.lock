@@ -795,6 +795,7 @@ dependencies = [
  "chrono",
  "confy",
  "futures",
+ "log",
  "regex",
  "reqwest",
  "serde",
