@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use regex::Regex;
@@ -11,7 +12,7 @@ struct QuestionPluginState {
     last_question_timestamp: i64,
 }
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize)]
 pub struct QuestionPluginConfig {
     // ignore_limit: Arc<Mutex<usize>>,
     pub sleep_seconds: i64,

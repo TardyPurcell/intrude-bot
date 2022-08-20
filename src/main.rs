@@ -23,16 +23,21 @@ async fn handle_event(event: web::Json<CQEvent>, tx: web::Data<Sender<CQEvent>>)
 
 #[tokio::main]
 async fn main() {
-    let cfg: AppConfig = confy::load("config").unwrap();
-    let listen_addr = cfg.listen_addr.clone();
+    let cfg_str = std::fs::read_to_string("config.toml").unwrap_or_else(|_| {
+        println!("config.toml not found, using default config");
+        let ret = toml::to_string(&AppConfig::default()).unwrap();
+        std::fs::write("config.toml", &ret).unwrap();
+        ret
+    });
+    let cfg: AppConfig = toml::from_str(&cfg_str).expect("config.toml is invalid");
+    let listen_addr = cfg.bot.listen_addr.clone();
     let (tx, rx) = mpsc::channel(100);
-    let mut bot = Bot::new(rx, cfg.clone());
+    let mut bot = Bot::new(rx, cfg.bot);
 
-    bot.register_plugin(EchoPlugin::new(None));
-    bot.register_plugin(QuestionPlugin::new(Some(QuestionPluginConfig {
-        sleep_seconds: 30,
-    })));
-    bot.register_plugin(ArchivePlugin::new(None));
+    bot.register_plugin(EchoPlugin::new(cfg.plugins.echo));
+    bot.register_plugin(QuestionPlugin::new(cfg.plugins.question));
+    bot.register_plugin(ArchivePlugin::new(cfg.plugins.archive));
+    bot.register_plugin(SaucePlugin::new(cfg.plugins.sauce));
 
     tokio::spawn(async move {
         bot.run().await;

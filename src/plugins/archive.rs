@@ -1,13 +1,12 @@
 use chrono::{Local, TimeZone};
-use log::debug;
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
 
 use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize)]
 pub struct ArchivePluginConfig;
 
 struct ArchivePluginState {
@@ -135,8 +134,6 @@ impl ArchivePlugin {
                 )
                 .await;
             }
-        } else {
-            debug!("failure");
         }
     }
 }
@@ -150,7 +147,7 @@ impl Plugin for ArchivePlugin {
         "自动复读已撤回的消息"
     }
     fn help(&self) -> &'static str {
-        ">archive toggle 开启或关闭撤回记录"
+        "用法:\r\n>archive toggle 开启或关闭撤回记录"
     }
     fn senario(&self) -> PluginSenario {
         PluginSenario::Group

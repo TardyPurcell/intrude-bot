@@ -1,9 +1,9 @@
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize)]
 pub struct EchoPluginConfig;
 
 pub struct EchoPlugin {
@@ -19,7 +19,7 @@ impl EchoPlugin {
     async fn echo(&self, event: CQEvent, bot: &Bot) {
         let msg = event.raw_message.as_ref().unwrap();
         let group_id = event.group_id.unwrap();
-        let re = Regex::new(r"^(?P<cmd>>echo)\s+(?P<content>.*)$").unwrap();
+        let re = Regex::new(r"^>echo\s+(?P<content>.+)$").unwrap();
         if !re.is_match(msg) {
             return;
         }
@@ -44,10 +44,10 @@ impl Plugin for EchoPlugin {
         "复读机"
     }
     fn help(&self) -> &'static str {
-        ">echo <复读内容>"
+        "用法:\r\n>echo <复读内容>"
     }
     fn senario(&self) -> PluginSenario {
-        PluginSenario::Both
+        PluginSenario::Group
     }
     async fn handle(&self, event: CQEvent, bot: &Bot) {
         match event.post_type.as_str() {

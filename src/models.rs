@@ -3,20 +3,38 @@ use reqwest::Response;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::Receiver;
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct AppConfig {
+use crate::plugins::{
+    ArchivePluginConfig, EchoPluginConfig, QuestionPluginConfig, SaucePluginConfig,
+};
+
+#[derive(Deserialize, Serialize)]
+pub struct BotConfig {
     pub listen_addr: String,
     pub cq_addr: String,
 }
-
-impl Default for AppConfig {
+impl Default for BotConfig {
     fn default() -> Self {
-        AppConfig {
+        BotConfig {
             listen_addr: "127.0.0.1:5701".to_string(),
             cq_addr: "127.0.0.1:5700".to_string(),
         }
     }
 }
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct PluginsConfig {
+    pub archive: Option<ArchivePluginConfig>,
+    pub echo: Option<EchoPluginConfig>,
+    pub question: Option<QuestionPluginConfig>,
+    pub sauce: Option<SaucePluginConfig>,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct AppConfig {
+    pub bot: BotConfig,
+    pub plugins: PluginsConfig,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CQEvent {
     pub time: i64,
@@ -46,7 +64,7 @@ pub struct CQEvent {
 }
 
 #[derive(PartialEq)]
-#[allow(dead_code)]
+// #[allow(dead_code)]
 pub enum PluginSenario {
     Private,
     Group,
@@ -84,13 +102,13 @@ pub trait Plugin {
 // #[derive(Clone)]
 pub struct Bot {
     plugins: Vec<Box<dyn Plugin + Send + Sync>>,
-    config: AppConfig,
+    config: BotConfig,
     event_receiver: Receiver<CQEvent>,
     client: reqwest::Client,
 }
 
 impl Bot {
-    pub fn new(rx: Receiver<CQEvent>, cfg: AppConfig) -> Self {
+    pub fn new(rx: Receiver<CQEvent>, cfg: BotConfig) -> Self {
         Bot {
             plugins: Vec::new(),
             config: cfg,
@@ -148,7 +166,9 @@ impl Bot {
             "" => {
                 for plugin in self.plugins.iter() {
                     if plugin.senario() == message_type || plugin.senario() == PluginSenario::Both {
-                        resp.push_str(format!("{}: {}\r\n", plugin.name(), plugin.help()).as_str());
+                        resp.push_str(
+                            format!("{}: {}\r\n", plugin.name(), plugin.description()).as_str(),
+                        );
                     }
                 }
                 if resp.is_empty() {
@@ -160,14 +180,26 @@ impl Bot {
                     if (plugin.senario() == message_type || plugin.senario() == PluginSenario::Both)
                         && plugin.name() == content
                     {
-                        resp.push_str(format!("{}: {}\r\n", plugin.name(), plugin.help()).as_str());
+                        resp.push_str(
+                            format!(
+                                "{}: {}\r\n\r\n{}\r\n",
+                                plugin.name(),
+                                plugin.description(),
+                                plugin.help()
+                            )
+                            .as_str(),
+                        );
                     }
                 }
                 if resp.is_empty() {
-                    resp.push_str("没有可用的插件");
+                    resp.push_str("未找到插件或插件不可用");
                 }
             }
         }
+        let resp = match content.as_str() {
+            "" => format!("用法:\r\n>help [插件名]\r\n\r\n插件列表:\r\n{resp}"),
+            _ => resp,
+        };
         match message_type {
             PluginSenario::Private => {
                 self.api_request(
