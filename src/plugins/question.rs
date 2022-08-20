@@ -1,39 +1,47 @@
-use serde_json::json;
+use futures::lock::Mutex;
+use std::sync::Arc;
 
 use regex::Regex;
-use tokio::sync::RwLock;
+use reqwest;
 
-use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
+use crate::{
+    models::{CQEvent, Plugin},
+    AppConfig,
+};
 
 #[derive(Clone)]
 struct QuestionPluginState {
     // ignored_cnt: Arc<Mutex<usize>>,
-    last_question_timestamp: i64,
+    last_question_timestamp: Arc<Mutex<i64>>,
 }
 
 #[derive(Clone)]
 pub struct QuestionPluginConfig {
     // ignore_limit: Arc<Mutex<usize>>,
-    pub sleep_seconds: i64,
+    sleep_seconds: Arc<Mutex<i64>>,
 }
 
+#[derive(Clone)]
 pub struct QuestionPlugin {
-    state: RwLock<QuestionPluginState>,
+    state: QuestionPluginState,
     config: QuestionPluginConfig,
 }
 
 impl QuestionPlugin {
     pub fn new(config: Option<QuestionPluginConfig>) -> Self {
         QuestionPlugin {
-            state: RwLock::new(QuestionPluginState {
+            state: QuestionPluginState {
                 // ignore_limit: Arc::new(Mutex::new(2)),
                 // ignored_cnt: Arc::new(Mutex::new(0)),
-                last_question_timestamp: 0,
+                last_question_timestamp: Arc::new(Mutex::new(0)),
+            },
+            config: config.unwrap_or(QuestionPluginConfig {
+                sleep_seconds: Arc::new(Mutex::new(0)),
             }),
-            config: config.unwrap_or(QuestionPluginConfig { sleep_seconds: 0 }),
         }
     }
-    async fn question(&self, event: CQEvent, bot: &Bot) {
+    async fn question(&self, event: CQEvent, app_config: AppConfig) {
+        let cq_addr = app_config.cq_addr;
         let msg = event.raw_message.as_ref().unwrap();
         let group_id = event.group_id.unwrap();
         let re = Regex::new(r"^[\?？¿⁇❓❔]+$").unwrap();
@@ -47,19 +55,15 @@ impl QuestionPlugin {
         // }
         // *ignored_cnt = 0;
         let now_timestamp = chrono::Utc::now().timestamp();
-        let mut state = self.state.write().await;
-        if now_timestamp - state.last_question_timestamp < self.config.sleep_seconds {
+        let last_question_timestamp = self.state.last_question_timestamp.lock().await;
+        if now_timestamp - *last_question_timestamp < *self.config.sleep_seconds.lock().await {
             return;
         }
-        state.last_question_timestamp = now_timestamp;
-        bot.api_request(
-            "send_group_msg",
-            json!({
-                "group_id": group_id,
-                "message": msg,
-            }),
-        )
-        .await;
+        reqwest::get(format!(
+            "http://{cq_addr}/send_group_msg?group_id={group_id}&message={msg}"
+        ))
+        .await
+        .unwrap();
     }
 }
 
@@ -71,16 +75,10 @@ impl Plugin for QuestionPlugin {
     fn help(&self) -> &'static str {
         "自动复读问号"
     }
-    fn senario(&self) -> PluginSenario {
-        PluginSenario::Group
+    fn event_type(&self) -> &'static str {
+        "message group"
     }
-    async fn handle(&self, event: CQEvent, bot: &Bot) {
-        match event.post_type.as_str() {
-            "message" => match event.message_type.as_ref().unwrap().as_str() {
-                "group" => self.question(event, bot).await,
-                _ => (),
-            },
-            _ => (),
-        }
+    async fn handle(&self, event: CQEvent, config: AppConfig) {
+        self.question(event, config).await;
     }
 }
