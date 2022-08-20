@@ -1,33 +1,28 @@
 use chrono::{Local, TimeZone};
-use log::debug;
-use regex::Regex;
-use serde::Deserialize;
-use serde_json::json;
-use tokio::sync::RwLock;
+use serde::{Deserialize, Serialize};
 
-use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
+use crate::{
+    models::{CQEvent, Plugin},
+    AppConfig,
+};
 
 #[derive(Clone)]
 pub struct ArchivePluginConfig;
 
-struct ArchivePluginState {
-    is_enable: bool,
-}
-
+#[derive(Clone)]
 pub struct ArchivePlugin {
-    state: RwLock<ArchivePluginState>,
     _config: ArchivePluginConfig,
 }
 
 impl ArchivePlugin {
     pub fn new(config: Option<ArchivePluginConfig>) -> Self {
         ArchivePlugin {
-            state: RwLock::new(ArchivePluginState { is_enable: false }),
             _config: config.unwrap_or(ArchivePluginConfig),
         }
     }
-    async fn archive(&self, event: CQEvent, bot: &Bot) {
-        if !self.state.read().await.is_enable {
+    async fn archive(event: CQEvent, config: AppConfig) {
+        let cq_addr = config.cq_addr;
+        if event.notice_type.as_ref().unwrap() != "group_recall" {
             return;
         }
         let CQEvent {
@@ -37,50 +32,36 @@ impl ArchivePlugin {
             operator_id,
             ..
         } = event;
-        let operator_info = bot
-            .api_request(
-                "get_group_member_info",
-                json!(
-                    {
-                        "group_id": group_id.unwrap(),
-                        "user_id": operator_id.unwrap(),
-                    }
-                ),
-            )
-            .await
-            .json::<DataExtractor>()
-            .await
-            .unwrap()
-            .data;
-        let user_info = bot
-            .api_request(
-                "get_group_member_info",
-                json!(
-                    {
-                        "group_id": group_id.unwrap(),
-                        "user_id": user_id.unwrap(),
-                    }
-                ),
-            )
-            .await
-            .json::<DataExtractor>()
-            .await
-            .unwrap()
-            .data;
-        let recalled_msg_info = bot
-            .api_request(
-                "get_msg",
-                json!(
-                    {
-                        "message_id": message_id.unwrap(),
-                    }
-                ),
-            )
-            .await
-            .json::<DataExtractor>()
-            .await
-            .unwrap()
-            .data;
+        let group_id = group_id.unwrap();
+        let message_id = message_id.unwrap();
+        let user_id = user_id.unwrap();
+        let operator_id = operator_id.unwrap();
+        let operator_info = reqwest::get(format!(
+            "http://{cq_addr}/get_group_member_info?group_id={group_id}&user_id={operator_id}"
+        ))
+        .await
+        .unwrap()
+        .json::<DataExtractor>()
+        .await
+        .unwrap()
+        .data;
+        let user_info = reqwest::get(format!(
+            "http://{cq_addr}/get_group_member_info?group_id={group_id}&user_id={user_id}"
+        ))
+        .await
+        .unwrap()
+        .json::<DataExtractor>()
+        .await
+        .unwrap()
+        .data;
+        let recalled_msg_info =
+            reqwest::get(format!("http://{cq_addr}/get_msg?message_id={message_id}"))
+                .await
+                .unwrap()
+                .json::<DataExtractor>()
+                .await
+                .unwrap()
+                .data;
         let recalled_msg_content = recalled_msg_info.message.unwrap();
         let recalled_msg_timestamp = recalled_msg_info.time.unwrap();
         let mut operator_name = operator_info.card.unwrap();
@@ -94,50 +75,26 @@ impl ArchivePlugin {
         if operator_id == user_id {
             user_name = "自己".to_string();
         }
-        let resp = format!(
-            "{operator_name} 撤回了 {user_name} 于 {datetime} 发送的消息：",
-            datetime = Local
-                .timestamp(recalled_msg_timestamp.into(), 0)
-                .naive_local()
-        );
-        bot.api_request(
-            "send_group_msg",
-            json!(
-                {
-                    "group_id": group_id.unwrap(),
-                    "message": resp
-                }
-            ),
-        )
-        .await;
-        bot.api_request(
-            "send_group_msg",
-            json!({"group_id": group_id.unwrap(), "message": recalled_msg_content}),
-        )
-        .await;
-    }
-    async fn toggle(&self, event: CQEvent, bot: &Bot) {
-        let re = Regex::new(r"^>archive\s+toggle\s*$").unwrap();
-        let msg = event.raw_message.unwrap();
-        if re.is_match(&msg) {
-            let mut state = self.state.write().await;
-            state.is_enable = !state.is_enable;
-            if state.is_enable {
-                bot.api_request(
-                    "send_group_msg",
-                    json!({"group_id": event.group_id.unwrap(), "message": "撤回记录已开启"}),
-                )
-                .await;
-            } else {
-                bot.api_request(
-                    "send_group_msg",
-                    json!({"group_id": event.group_id.unwrap(), "message": "撤回记录已关闭"}),
-                )
-                .await;
-            }
-        } else {
-            debug!("failure");
-        }
+        reqwest::get(format!(
+            "http://{cq_addr}/send_group_msg?group_id={group_id}&message={resp}",
+            resp = format!(
+                "{operator_name} 撤回了 {user_name} 于 {datetime} 发送的消息：",
+                datetime = Local
+                    .timestamp(recalled_msg_timestamp.into(), 0)
+                    .naive_local()
+            )
+        ))
+        .await
+        .unwrap();
+        reqwest::Client::new()
+            .post(format!("http://{cq_addr}/send_group_msg"))
+            .json(&Req {
+                group_id,
+                message: recalled_msg_content,
+            })
+            .send()
+            .await
+            .unwrap();
     }
 }
 
@@ -149,21 +106,11 @@ impl Plugin for ArchivePlugin {
     fn help(&self) -> &'static str {
         "自动复读已撤回的消息"
     }
-    fn senario(&self) -> PluginSenario {
-        PluginSenario::Group
+    fn event_type(&self) -> &'static str {
+        "notice group"
     }
-    async fn handle(&self, event: CQEvent, bot: &Bot) {
-        match event.post_type.as_str() {
-            "notice" => match event.notice_type.as_ref().unwrap().as_str() {
-                "group_recall" => self.archive(event, bot).await,
-                _ => (),
-            },
-            "message" => match event.message_type.as_ref().unwrap().as_str() {
-                "group" => self.toggle(event, bot).await,
-                _ => (),
-            },
-            _ => (),
-        }
+    async fn handle(&self, event: CQEvent, config: AppConfig) {
+        Self::archive(event, config).await;
     }
 }
 
@@ -178,4 +125,10 @@ struct InnerData {
     card: Option<String>,
     message: Option<String>,
     time: Option<i32>,
+}
+
+#[derive(Serialize)]
+struct Req {
+    group_id: i64,
+    message: String,
 }
