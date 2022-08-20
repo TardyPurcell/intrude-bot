@@ -796,6 +796,7 @@ dependencies = [
  "confy",
  "futures",
  "log",
+ "rand",
  "regex",
  "reqwest",
  "serde",

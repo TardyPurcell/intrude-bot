@@ -38,6 +38,7 @@ async fn main() {
     bot.register_plugin(QuestionPlugin::new(cfg.plugins.question));
     bot.register_plugin(ArchivePlugin::new(cfg.plugins.archive));
     bot.register_plugin(SaucePlugin::new(cfg.plugins.sauce));
+    bot.register_plugin(RandintPlugin::new());
 
     tokio::spawn(async move {
         bot.run().await;
