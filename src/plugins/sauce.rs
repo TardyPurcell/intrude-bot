@@ -3,7 +3,8 @@ use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
+use crate::bot::Bot;
+use crate::models::{CQEvent, Plugin, PluginSenario};
 
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub struct SaucePluginConfig {

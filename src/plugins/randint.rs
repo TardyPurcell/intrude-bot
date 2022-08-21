@@ -2,7 +2,8 @@ use rand::Rng;
 use regex::Regex;
 use serde_json::json;
 
-use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
+use crate::models::{CQEvent, Plugin, PluginSenario};
+use crate::bot::Bot;
 
 pub struct RandintPlugin;
 impl RandintPlugin {

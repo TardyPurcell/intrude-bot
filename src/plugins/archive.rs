@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
 
-use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
+use crate::bot::Bot;
+use crate::models::{CQEvent, Plugin, PluginSenario};
 
 #[derive(Serialize, Deserialize)]
 pub struct ArchivePluginConfig;

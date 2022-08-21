@@ -4,7 +4,8 @@ use serde_json::json;
 use regex::Regex;
 use tokio::sync::RwLock;
 
-use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
+use crate::models::{CQEvent, Plugin, PluginSenario};
+use crate::bot::Bot;
 
 #[derive(Clone)]
 struct QuestionPluginState {
