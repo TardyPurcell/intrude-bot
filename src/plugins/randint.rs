@@ -2,8 +2,8 @@ use rand::Rng;
 use regex::Regex;
 use serde_json::json;
 
-use crate::models::{CQEvent, Plugin, PluginSenario};
 use crate::bot::Bot;
+use crate::models::{CQEvent, Plugin, PluginSenario};
 
 pub struct RandintPlugin;
 impl RandintPlugin {
@@ -16,8 +16,16 @@ impl RandintPlugin {
         if !re.is_match(msg) {
             return;
         }
-        let min = re.replace_all(&msg, "$min").parse::<u128>().unwrap();
-        let max = re.replace_all(&msg, "$max").parse::<u128>().unwrap();
+        let min = re.replace_all(&msg, "$min").parse::<u128>();
+        let max = re.replace_all(&msg, "$max").parse::<u128>();
+        if let Err(_) = min {
+            return;
+        }
+        if let Err(_) = max {
+            return;
+        }
+        let min = min.unwrap();
+        let max = max.unwrap();
         if min > max {
             bot.api_request(
                 "send_group_msg",
