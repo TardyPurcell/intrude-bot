@@ -8,6 +8,7 @@ use crate::models::{CQEvent, Plugin, PluginSenario};
 #[derive(Default, Deserialize, Serialize)]
 pub struct HOKpPluginConfig {
     pub patterns: Vec<String>,
+    pub whitelist: Vec<i64>,
 }
 
 pub struct HOKpPlugin {
@@ -21,6 +22,10 @@ impl HOKpPlugin {
         }
     }
     async fn hokp(&self, event: CQEvent, bot: &Bot) {
+        let group_id = event.group_id.unwrap();
+        if let None = self.config.whitelist.iter().find(|&&x| x == group_id) {
+            return;
+        }
         let msg = event.raw_message.unwrap();
         let mut is_hokp = false;
         for pattern in self.config.patterns.iter() {
