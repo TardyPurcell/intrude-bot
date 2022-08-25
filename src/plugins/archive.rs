@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use chrono::{Local, TimeZone};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -26,9 +28,9 @@ impl ArchivePlugin {
             _config: config.unwrap_or(ArchivePluginConfig),
         }
     }
-    async fn archive(&self, event: CQEvent, bot: &Bot) {
+    async fn archive(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         if !self.state.read().await.is_enable {
-            return;
+            return Ok(());
         }
         let CQEvent {
             group_id,
@@ -47,7 +49,7 @@ impl ArchivePlugin {
                     }
                 ),
             )
-            .await
+            .await?
             .json::<DataExtractor>()
             .await
             .unwrap()
@@ -62,7 +64,7 @@ impl ArchivePlugin {
                     }
                 ),
             )
-            .await
+            .await?
             .json::<DataExtractor>()
             .await
             .unwrap()
@@ -76,7 +78,7 @@ impl ArchivePlugin {
                     }
                 ),
             )
-            .await
+            .await?
             .json::<DataExtractor>()
             .await
             .unwrap()
@@ -109,14 +111,15 @@ impl ArchivePlugin {
                 }
             ),
         )
-        .await;
+        .await?;
         bot.api_request(
             "send_group_msg",
             json!({"group_id": group_id.unwrap(), "message": recalled_msg_content}),
         )
-        .await;
+        .await?;
+        Ok(())
     }
-    async fn toggle(&self, event: CQEvent, bot: &Bot) {
+    async fn toggle(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         let re = Regex::new(r"^>archive\s+toggle\s*$").unwrap();
         let msg = event.raw_message.unwrap();
         if re.is_match(&msg) {
@@ -127,15 +130,16 @@ impl ArchivePlugin {
                     "send_group_msg",
                     json!({"group_id": event.group_id.unwrap(), "message": "撤回记录已开启"}),
                 )
-                .await;
+                .await?;
             } else {
                 bot.api_request(
                     "send_group_msg",
                     json!({"group_id": event.group_id.unwrap(), "message": "撤回记录已关闭"}),
                 )
-                .await;
+                .await?;
             }
         }
+        Ok(())
     }
 }
 
@@ -153,17 +157,17 @@ impl Plugin for ArchivePlugin {
     fn senario(&self) -> PluginSenario {
         PluginSenario::Group
     }
-    async fn handle(&self, event: CQEvent, bot: &Bot) {
+    async fn handle(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         match event.post_type.as_str() {
             "notice" => match event.notice_type.as_ref().unwrap().as_str() {
                 "group_recall" => self.archive(event, bot).await,
-                _ => (),
+                _ => Ok(()),
             },
             "message" => match event.message_type.as_ref().unwrap().as_str() {
                 "group" => self.toggle(event, bot).await,
-                _ => (),
+                _ => Ok(()),
             },
-            _ => (),
+            _ => Ok(()),
         }
     }
 }

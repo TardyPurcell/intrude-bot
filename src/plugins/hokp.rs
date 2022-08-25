@@ -1,6 +1,7 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::error::Error;
 
 use crate::bot::Bot;
 use crate::models::{CQEvent, Plugin, PluginSenario};
@@ -21,10 +22,10 @@ impl HOKpPlugin {
             config: config.unwrap_or_default(),
         }
     }
-    async fn hokp(&self, event: CQEvent, bot: &Bot) {
+    async fn hokp(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         let group_id = event.group_id.unwrap();
         if let None = self.config.whitelist.iter().find(|&&x| x == group_id) {
-            return;
+            return Ok(());
         }
         let msg = event.raw_message.unwrap();
         let mut is_hokp = false;
@@ -36,7 +37,7 @@ impl HOKpPlugin {
             }
         }
         if !is_hokp {
-            return;
+            return Ok(());
         }
         bot.api_request(
             "send_group_msg",
@@ -45,7 +46,8 @@ impl HOKpPlugin {
                 "message": " 要不咱玩农吧"
             }),
         )
-        .await;
+        .await?;
+        Ok(())
     }
 }
 
@@ -67,10 +69,10 @@ impl Plugin for HOKpPlugin {
         PluginSenario::Group
     }
 
-    async fn handle(&self, event: CQEvent, bot: &Bot) {
+    async fn handle(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         match event.post_type.as_str() {
             "message" => self.hokp(event, bot).await,
-            _ => (),
+            _ => Ok(()),
         }
     }
 }

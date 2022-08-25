@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::error::Error;
 
 use regex::Regex;
 use tokio::sync::RwLock;
 
-use crate::models::{CQEvent, Plugin, PluginSenario};
 use crate::bot::Bot;
+use crate::models::{CQEvent, Plugin, PluginSenario};
 
 #[derive(Clone)]
 struct QuestionPluginState {
@@ -35,12 +36,12 @@ impl QuestionPlugin {
             config: config.unwrap_or(QuestionPluginConfig { sleep_seconds: 0 }),
         }
     }
-    async fn question(&self, event: CQEvent, bot: &Bot) {
+    async fn question(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         let msg = event.raw_message.as_ref().unwrap();
         let group_id = event.group_id.unwrap();
         let re = Regex::new(r"^[\?？¿⁇❓❔]+$").unwrap();
         if !re.is_match(msg) {
-            return;
+            return Ok(());
         }
         // let mut ignored_cnt = self.state.ignored_cnt.lock().await;
         // *ignored_cnt += 1;
@@ -51,7 +52,7 @@ impl QuestionPlugin {
         let now_timestamp = chrono::Utc::now().timestamp();
         let mut state = self.state.write().await;
         if now_timestamp - state.last_question_timestamp < self.config.sleep_seconds {
-            return;
+            return Ok(());
         }
         state.last_question_timestamp = now_timestamp;
         bot.api_request(
@@ -61,7 +62,8 @@ impl QuestionPlugin {
                 "message": msg,
             }),
         )
-        .await;
+        .await?;
+        Ok(())
     }
 }
 
@@ -79,13 +81,13 @@ impl Plugin for QuestionPlugin {
     fn senario(&self) -> PluginSenario {
         PluginSenario::Group
     }
-    async fn handle(&self, event: CQEvent, bot: &Bot) {
+    async fn handle(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         match event.post_type.as_str() {
             "message" => match event.message_type.as_ref().unwrap().as_str() {
                 "group" => self.question(event, bot).await,
-                _ => (),
+                _ => Ok(()),
             },
-            _ => (),
+            _ => Ok(()),
         }
     }
 }

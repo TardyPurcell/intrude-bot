@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 
 use crate::{
     bot::{Bot, BotConfig},
@@ -65,5 +66,5 @@ pub trait Plugin {
     fn description(&self) -> &'static str;
     fn help(&self) -> &'static str;
     fn senario(&self) -> PluginSenario;
-    async fn handle(&self, event: CQEvent, bot: &Bot) -> ();
+    async fn handle(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>>;
 }

@@ -1,9 +1,11 @@
+use std::error::Error;
+
 use regex::Regex;
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::Receiver;
 
-use crate::models::{Plugin, CQEvent, PluginSenario};
+use crate::models::{CQEvent, Plugin, PluginSenario};
 
 #[derive(Deserialize, Serialize)]
 pub struct BotConfig {
@@ -40,14 +42,24 @@ impl Bot {
     pub async fn run(&mut self) {
         loop {
             let event = self.event_receiver.recv().await.unwrap();
-            self.handle_help(event.clone()).await;
+            match self.handle_help(event.clone()).await {
+                Ok(_) => (),
+                Err(_) => (),
+            }
             for plugin in &self.plugins {
                 // let config = self.config.clone();
-                plugin.handle(event.clone(), self).await;
+                match plugin.handle(event.clone(), self).await {
+                    Ok(_) => (),
+                    Err(_) => (),
+                }
             }
         }
     }
-    pub async fn api_request(&self, api: &str, json: impl Serialize) -> Response {
+    pub async fn api_request(
+        &self,
+        api: &str,
+        json: impl Serialize,
+    ) -> Result<Response, Box<dyn Error + Send>> {
         self.client
             .post(format!(
                 "http://{cq_addr}/{api}",
@@ -56,16 +68,16 @@ impl Bot {
             .json(&json)
             .send()
             .await
-            .unwrap()
+            .map_err(|err| Box::new(err) as Box<dyn Error + Send>)
     }
-    async fn handle_help(&self, event: CQEvent) {
+    async fn handle_help(&self, event: CQEvent) -> Result<(), Box<dyn Error + Send>> {
         if event.post_type != "message" {
-            return;
+            return Ok(());
         }
         let msg = event.raw_message.as_ref().unwrap();
         let re = Regex::new(r"^(?P<cmd>>help)($|\s+(?P<content>.*)$)").unwrap();
         if !re.is_match(msg) {
-            return;
+            return Ok(());
         }
         let CQEvent {
             group_id,
@@ -127,7 +139,7 @@ impl Bot {
                         message: resp,
                     },
                 )
-                .await;
+                .await?;
             }
             PluginSenario::Group => {
                 self.api_request(
@@ -137,10 +149,11 @@ impl Bot {
                         message: resp,
                     },
                 )
-                .await;
+                .await?;
             }
             _ => unreachable!(),
         }
+        Ok(())
     }
 }
 
