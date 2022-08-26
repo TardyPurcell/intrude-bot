@@ -59,7 +59,10 @@ impl SaucePlugin {
                 "相似度 {similarity}\r\n[CQ:image,file={img_url}]\r\n{result_url}",
                 similarity = result.header.similarity,
                 img_url = result.header.thumbnail,
-                result_url = result.data.ext_urls.unwrap().join("\r\n")
+                result_url = match result.data.ext_urls {
+                    Some(urls) => urls.join("\r\n"),
+                    None => String::new(),
+                }
             );
 
             bot.api_request(
