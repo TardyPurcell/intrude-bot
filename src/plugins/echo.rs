@@ -1,7 +1,9 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 
-use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
+use crate::bot::Bot;
+use crate::models::{CQEvent, Plugin, PluginSenario};
 
 #[derive(Serialize, Deserialize)]
 pub struct EchoPluginConfig;
@@ -16,12 +18,12 @@ impl EchoPlugin {
             _config: config.unwrap_or(EchoPluginConfig),
         }
     }
-    async fn echo(&self, event: CQEvent, bot: &Bot) {
+    async fn echo(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         let msg = event.raw_message.as_ref().unwrap();
         let group_id = event.group_id.unwrap();
         let re = Regex::new(r"^>echo\s+(?P<content>.+)$").unwrap();
         if !re.is_match(msg) {
-            return;
+            return Ok(());
         }
         let content = re.replace_all(&msg, "$content").to_string();
         bot.api_request(
@@ -31,7 +33,8 @@ impl EchoPlugin {
                 message: content,
             },
         )
-        .await;
+        .await?;
+        Ok(())
     }
 }
 
@@ -49,10 +52,10 @@ impl Plugin for EchoPlugin {
     fn senario(&self) -> PluginSenario {
         PluginSenario::Group
     }
-    async fn handle(&self, event: CQEvent, bot: &Bot) {
+    async fn handle(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         match event.post_type.as_str() {
             "message" => self.echo(event, bot).await,
-            _ => (),
+            _ => Ok(()),
         }
     }
 }

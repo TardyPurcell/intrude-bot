@@ -2,8 +2,10 @@ use regex::Regex;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::error::Error;
 
-use crate::models::{Bot, CQEvent, Plugin, PluginSenario};
+use crate::bot::Bot;
+use crate::models::{CQEvent, Plugin, PluginSenario};
 
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub struct SaucePluginConfig {
@@ -18,12 +20,12 @@ impl SaucePlugin {
             config: config.unwrap_or_default(),
         }
     }
-    async fn sauce(&self, event: CQEvent, bot: &Bot) {
+    async fn sauce(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         let msg = event.raw_message.as_ref().unwrap();
         let re =
             Regex::new(r"^>sauce\s*\[CQ:image,[^\]]*url=(?P<img_url>[^,\]]+)[^\]]*\]\s*$").unwrap();
         if !re.is_match(msg) {
-            return;
+            return Ok(());
         }
         let img_url = re.replace_all(&msg, "$img_url").to_string();
         let resp = reqwest::Client::new()
@@ -37,7 +39,7 @@ impl SaucePlugin {
             ])
             .send()
             .await
-            .unwrap()
+            .map_err(|err| Box::new(err) as Box<dyn Error + Send>)?
             .json::<SauceResponse>()
             .await
             .unwrap();
@@ -49,15 +51,18 @@ impl SaucePlugin {
                     "message": "没有找到结果",
                 }),
             )
-            .await;
-            return;
+            .await?;
+            return Ok(());
         }
         for result in resp.results {
             let msg = format!(
                 "相似度 {similarity}\r\n[CQ:image,file={img_url}]\r\n{result_url}",
                 similarity = result.header.similarity,
                 img_url = result.header.thumbnail,
-                result_url = result.data.ext_urls.unwrap().join("\r\n")
+                result_url = match result.data.ext_urls {
+                    Some(urls) => urls.join("\r\n"),
+                    None => String::new(),
+                }
             );
 
             bot.api_request(
@@ -67,8 +72,9 @@ impl SaucePlugin {
                     "message": msg,
                 }),
             )
-            .await;
+            .await?;
         }
+        Ok(())
     }
 }
 
@@ -86,10 +92,10 @@ impl Plugin for SaucePlugin {
     fn senario(&self) -> PluginSenario {
         PluginSenario::Group
     }
-    async fn handle(&self, event: CQEvent, bot: &Bot) {
+    async fn handle(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         match event.post_type.as_str() {
             "message" => self.sauce(event, bot).await,
-            _ => (),
+            _ => Ok(()),
         }
     }
 }

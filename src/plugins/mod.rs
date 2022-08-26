@@ -6,3 +6,7 @@ mod question;
 pub use question::*;
 mod sauce;
 pub use sauce::*;
+mod randint;
+pub use randint::*;
+mod hokp;
+pub use hokp::*;

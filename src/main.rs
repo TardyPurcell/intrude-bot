@@ -1,7 +1,9 @@
+mod bot;
 mod models;
 mod plugins;
 use actix_web::{post, web, App, HttpServer, Responder};
-use models::{AppConfig, Bot};
+use bot::Bot;
+use models::AppConfig;
 use plugins::*;
 use tokio::sync::mpsc::{self, Sender};
 
@@ -38,6 +40,8 @@ async fn main() {
     bot.register_plugin(QuestionPlugin::new(cfg.plugins.question));
     bot.register_plugin(ArchivePlugin::new(cfg.plugins.archive));
     bot.register_plugin(SaucePlugin::new(cfg.plugins.sauce));
+    bot.register_plugin(RandintPlugin::new());
+    bot.register_plugin(HOKpPlugin::new(cfg.plugins.hokp));
 
     tokio::spawn(async move {
         bot.run().await;
