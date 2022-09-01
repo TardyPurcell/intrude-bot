@@ -2,24 +2,36 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::error::Error;
+use tokio::sync::RwLock;
 
 use crate::bot::Bot;
 use crate::models::{CQEvent, Plugin, PluginSenario};
+
+#[derive(Default, Deserialize, Serialize)]
+struct HOKpPluginState {
+    // ignored_cnt: Arc<Mutex<usize>>,
+    last_msg_timestamp: i64,
+}
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct HOKpPluginConfig {
     pub not_hokp_patterns: Vec<String>,
     pub hokp_patterns: Vec<String>,
     pub whitelist: Vec<i64>,
+    pub sleep_seconds: i64,
 }
 
 pub struct HOKpPlugin {
+    state: RwLock<HOKpPluginState>,
     config: HOKpPluginConfig,
 }
 
 impl HOKpPlugin {
     pub fn new(config: Option<HOKpPluginConfig>) -> Self {
         HOKpPlugin {
+            state: RwLock::new(HOKpPluginState {
+                last_msg_timestamp: 0,
+            }),
             config: config.unwrap_or_default(),
         }
     }
@@ -44,6 +56,9 @@ impl HOKpPlugin {
             }),
         )
         .await?;
+        let mut state = self.state.write().await;
+        let now_timestamp = chrono::Utc::now().timestamp();
+        state.last_msg_timestamp = now_timestamp;
         Ok(())
     }
 
@@ -68,10 +83,17 @@ impl HOKpPlugin {
             }),
         )
         .await?;
+        let mut state = self.state.write().await;
+        let now_timestamp = chrono::Utc::now().timestamp();
+        state.last_msg_timestamp = now_timestamp;
         Ok(())
     }
     fn filter(&self, group_id: i64) -> bool {
-        self.config.whitelist.iter().find(|&&x| x == group_id).is_some()
+        self.config
+            .whitelist
+            .iter()
+            .find(|&&x| x == group_id)
+            .is_some()
     }
 }
 
@@ -99,6 +121,11 @@ impl Plugin for HOKpPlugin {
                 "group" => {
                     let group_id = event.group_id.clone().unwrap();
                     if !self.filter(group_id) {
+                        return Ok(());
+                    }
+                    let now_timestamp = chrono::Utc::now().timestamp();
+                    let state = self.state.read().await;
+                    if now_timestamp - state.last_msg_timestamp < self.config.sleep_seconds {
                         return Ok(());
                     }
                     self.hokp(event.clone(), bot).await?;

@@ -5,7 +5,7 @@ use crate::{
     bot::{Bot, BotConfig},
     plugins::{
         ArchivePluginConfig, EchoPluginConfig, HOKpPluginConfig, QuestionPluginConfig,
-        SaucePluginConfig,
+        RandintPluginConfig, RepeatPluginConfig, SaucePluginConfig,
     },
 };
 
@@ -15,7 +15,9 @@ pub struct PluginsConfig {
     pub echo: Option<EchoPluginConfig>,
     pub question: Option<QuestionPluginConfig>,
     pub sauce: Option<SaucePluginConfig>,
+    pub randint: Option<RandintPluginConfig>,
     pub hokp: Option<HOKpPluginConfig>,
+    pub repeat: Option<RepeatPluginConfig>,
 }
 
 #[derive(Default, Deserialize, Serialize)]
