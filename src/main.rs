@@ -40,10 +40,11 @@ async fn main() {
     bot.register_plugin(QuestionPlugin::new(cfg.plugins.question));
     bot.register_plugin(ArchivePlugin::new(cfg.plugins.archive));
     bot.register_plugin(SaucePlugin::new(cfg.plugins.sauce));
-    bot.register_plugin(RandintPlugin::new());
+    bot.register_plugin(RandintPlugin::new(cfg.plugins.randint));
     bot.register_plugin(HOKpPlugin::new(cfg.plugins.hokp));
+    bot.register_plugin(RepeatPlugin::new(cfg.plugins.repeat));
 
-    tokio::spawn(async move {
+    let bot_thread = tokio::spawn(async move {
         bot.run().await;
     });
     HttpServer::new(move || {
@@ -56,4 +57,5 @@ async fn main() {
     .run()
     .await
     .unwrap();
+    bot_thread.abort();
 }

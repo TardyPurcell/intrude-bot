@@ -3,7 +3,7 @@ use std::error::Error;
 use regex::Regex;
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::{mpsc::Receiver, Mutex};
 
 use crate::models::{CQEvent, Plugin, PluginSenario};
 
@@ -23,7 +23,7 @@ impl Default for BotConfig {
 pub struct Bot {
     plugins: Vec<Box<dyn Plugin + Send + Sync>>,
     config: BotConfig,
-    event_receiver: Receiver<CQEvent>,
+    event_receiver: Mutex<Receiver<CQEvent>>,
     client: reqwest::Client,
 }
 
@@ -32,26 +32,28 @@ impl Bot {
         Bot {
             plugins: Vec::new(),
             config: cfg,
-            event_receiver: rx,
+            event_receiver: Mutex::new(rx),
             client: reqwest::Client::new(),
         }
     }
     pub fn register_plugin(&mut self, plugin: impl Plugin + Send + Sync + 'static) {
         self.plugins.push(Box::new(plugin));
     }
-    pub async fn run(&mut self) {
+    pub async fn run(&self) {
         loop {
-            let event = self.event_receiver.recv().await.unwrap();
+            let event = self.event_receiver.lock().await.recv().await.unwrap();
             match self.handle_help(event.clone()).await {
                 Ok(_) => (),
                 Err(_) => (),
             }
             for plugin in &self.plugins {
-                // let config = self.config.clone();
-                match plugin.handle(event.clone(), self).await {
-                    Ok(_) => (),
-                    Err(_) => (),
+                let self_cln = self;
+                let evt_cln = event.clone();
+                // tokio::spawn(async move {
+                match plugin.handle(evt_cln, self_cln).await {
+                    _ => ()
                 }
+                // });
             }
         }
     }

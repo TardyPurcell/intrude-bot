@@ -10,3 +10,5 @@ mod randint;
 pub use randint::*;
 mod hokp;
 pub use hokp::*;
+mod repeat;
+pub use repeat::*;

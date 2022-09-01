@@ -1,15 +1,22 @@
 use rand::Rng;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::error::Error;
 
 use crate::bot::Bot;
 use crate::models::{CQEvent, Plugin, PluginSenario};
-
-pub struct RandintPlugin;
+#[derive(Deserialize, Serialize, Default)]
+pub struct RandintPluginConfig;
+#[allow(dead_code)]
+pub struct RandintPlugin {
+    config: RandintPluginConfig,
+}
 impl RandintPlugin {
-    pub fn new() -> Self {
-        RandintPlugin {}
+    pub fn new(config: Option<RandintPluginConfig>) -> Self {
+        RandintPlugin {
+            config: config.unwrap_or_default(),
+        }
     }
     async fn randint(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
         let msg = event.raw_message.as_ref().unwrap();
