@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use log::debug;
 use regex::Regex;
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
@@ -50,8 +51,14 @@ impl Bot {
                 let self_cln = self;
                 let evt_cln = event.clone();
                 // tokio::spawn(async move {
-                match plugin.handle(evt_cln, self_cln).await {
-                    _ => ()
+                match plugin.handle(evt_cln.clone(), self_cln).await {
+                    Ok(_) => (),
+                    Err(err) => debug!(
+                        "an error occurred: {:?}\nwhen plugin {} is handling event: {:?}",
+                        err,
+                        plugin.name(),
+                        evt_cln
+                    ),
                 }
                 // });
             }
