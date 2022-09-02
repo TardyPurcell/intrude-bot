@@ -1,8 +1,9 @@
 mod bot;
 mod models;
 mod plugins;
-use actix_web::{post, web, App, HttpServer, Responder};
+use actix_web::{post, web, App, HttpResponse, HttpServer, Responder};
 use bot::Bot;
+use log::{info, warn};
 use models::AppConfig;
 use plugins::*;
 use tokio::sync::mpsc::{self, Sender};
@@ -19,14 +20,18 @@ async fn handle_event(event: web::Json<CQEvent>, tx: web::Data<Sender<CQEvent>>)
     //     "meta_event" => bot.handle_meta_event(event).await,
     //     _ => (),
     // }
+    if event.post_type.as_str() == "meta_event" {
+        return HttpResponse::NoContent().finish();
+    }
     tx.send(event).await.unwrap();
-    "ok"
+    return HttpResponse::NoContent().finish();
 }
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let cfg_str = std::fs::read_to_string("config.toml").unwrap_or_else(|_| {
-        println!("config.toml not found, using default config");
+        warn!("config.toml not found, using default config");
         let ret = toml::to_string(&AppConfig::default()).unwrap();
         std::fs::write("config.toml", &ret).unwrap();
         ret
@@ -47,6 +52,7 @@ async fn main() {
     let bot_thread = tokio::spawn(async move {
         bot.run().await;
     });
+    info!("bot started.");
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(tx.clone()))

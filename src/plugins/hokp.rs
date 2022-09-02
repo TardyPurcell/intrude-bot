@@ -1,3 +1,4 @@
+use log::debug;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -121,12 +122,20 @@ impl Plugin for HOKpPlugin {
                 "group" => {
                     let group_id = event.group_id.clone().unwrap();
                     if !self.filter(group_id) {
+                        debug!("group_id is not in white list. returning...");
                         return Ok(());
                     }
-                    let now_timestamp = chrono::Utc::now().timestamp();
-                    let state = self.state.read().await;
-                    if now_timestamp - state.last_msg_timestamp < self.config.sleep_seconds {
-                        return Ok(());
+                    {
+                        let now_timestamp = chrono::Utc::now().timestamp();
+                        let state = self.state.read().await;
+                        if now_timestamp - state.last_msg_timestamp < self.config.sleep_seconds {
+                            debug!(
+                                "plugin sleeping. {} seconds remaining. returning...",
+                                self.config.sleep_seconds + state.last_msg_timestamp
+                                    - now_timestamp
+                            );
+                            return Ok(());
+                        }
                     }
                     self.hokp(event.clone(), bot).await?;
                     self.anti_hokp(event, bot).await
