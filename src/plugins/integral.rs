@@ -2,7 +2,7 @@ use std::error::Error;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use sqlx::{pool, sqlite::SqlitePoolOptions, SqlitePool};
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 
 use crate::{
     bot::Bot,
@@ -105,4 +105,34 @@ impl IntegralPlugin {
 enum Cmd {
     Punch,
     Status,
+}
+
+#[cfg(test)]
+mod tests {
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    #[tokio::test]
+    async fn db_connect() {
+        dotenv::dotenv().ok();
+        let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set");
+        let pool = SqlitePoolOptions::new().connect(&db_url).await.unwrap();
+        sqlx::query!(
+            r"INSERT INTO integral_time_card VALUES ($1, $2)",
+            0_i64,
+            114514_i64
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let res: i64 = sqlx::query!(
+            r"SELECT healthy_days FROM integral_time_card WHERE user_id=$1",
+            0_i64
+        )
+        .fetch_one(&pool)
+        .await
+        .map(|row| row.healthy_days)
+        .unwrap()
+        .into();
+        assert_eq!(res, 114514);
+    }
 }

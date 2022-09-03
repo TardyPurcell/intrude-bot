@@ -43,10 +43,7 @@ impl Bot {
     pub async fn run(&self) {
         loop {
             let event = self.event_receiver.lock().await.recv().await.unwrap();
-            match self.handle_help(event.clone()).await {
-                Ok(_) => (),
-                Err(_) => (),
-            }
+            self.handle_help(event.clone()).await.ok();
             for plugin in &self.plugins {
                 let self_cln = self;
                 let evt_cln = event.clone();
