@@ -84,80 +84,39 @@ impl IntegralPlugin {
         let cmd = cmd.unwrap();
         let user_id = event.user_id.unwrap();
         let group_id = event.group_id.unwrap();
-        match cmd {
-            Cmd::Punch => {
-                let res = self.punch(user_id).await;
-                let user_info = bot
-                    .api_request(
-                        "get_group_member_info",
-                        json!(
-                            {
-                                "group_id": group_id,
-                                "user_id": user_id,
-                            }
-                        ),
-                    )
-                    .await?
-                    .json::<DataExtractor>()
-                    .await
-                    .unwrap()
-                    .data;
-                let user_name = match user_info.card {
-                    None => user_info.nickname.unwrap(),
-                    Some(name) => name,
-                };
-                let msg = format!(
-                    "{}已戒导{}秒",
-                    user_name,
-                    res.num_seconds()
-                );
-                bot.api_request(
-                    "send_group_msg",
-                    json!({
+        let res = match cmd {
+            Cmd::Punch => self.punch(user_id).await,
+            Cmd::Status => self.status(user_id).await,
+        };
+        let user_info = bot
+            .api_request(
+                "get_group_member_info",
+                json!(
+                    {
                         "group_id": group_id,
-                        "message": msg
-                    }),
-                )
-                .await?;
-                Ok(())
-            }
-            Cmd::Status => {
-                let res = self.status(user_id).await;
-                let user_info = bot
-                    .api_request(
-                        "get_group_member_info",
-                        json!(
-                            {
-                                "group_id": group_id,
-                                "user_id": user_id,
-                            }
-                        ),
-                    )
-                    .await?
-                    .json::<DataExtractor>()
-                    .await
-                    .unwrap()
-                    .data;
-                let user_name = match user_info.card {
-                    None => user_info.nickname.unwrap(),
-                    Some(name) => name,
-                };
-                let msg = format!(
-                    "{}已戒导{}秒",
-                    user_name,
-                    res.num_seconds()
-                );
-                bot.api_request(
-                    "send_group_msg",
-                    json!({
-                        "group_id": group_id,
-                        "message": msg
-                    }),
-                )
-                .await?;
-                Ok(())
-            }
-        }
+                        "user_id": user_id,
+                    }
+                ),
+            )
+            .await?
+            .json::<DataExtractor>()
+            .await
+            .unwrap()
+            .data;
+        let user_name = match user_info.card {
+            None => user_info.nickname.unwrap(),
+            Some(name) => name,
+        };
+        let msg = format!("{} 已戒导 {} 秒", user_name, res.num_seconds());
+        bot.api_request(
+            "send_group_msg",
+            json!({
+                "group_id": group_id,
+                "message": msg
+            }),
+        )
+        .await?;
+        Ok(())
     }
     fn resolve(msg: String) -> Option<Cmd> {
         let re = Regex::new(r"^>integral\s+(?P<cmd>\S+)\s*$").unwrap();
