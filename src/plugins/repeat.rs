@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
@@ -23,55 +24,6 @@ pub struct RepeatPluginConfig {
 pub struct RepeatPlugin {
     state: RwLock<RepeatPluginState>,
     config: RepeatPluginConfig,
-}
-
-impl RepeatPlugin {
-    pub fn new(config: Option<RepeatPluginConfig>) -> Self {
-        RepeatPlugin {
-            state: RwLock::new(Default::default()),
-            config: config.unwrap_or_default(),
-        }
-    }
-    async fn set_state(&self, event: CQEvent) -> Result<(), Box<dyn Error + Send>> {
-        let mut state = self.state.write().await;
-        match state.target_msg {
-            None => {
-                state.target_msg = event.raw_message;
-                state.target_cnt = 1;
-            }
-            Some(ref msg) => {
-                let new_msg = event.raw_message.as_ref().unwrap();
-                if new_msg == msg {
-                    state.target_cnt += 1;
-                } else {
-                    state.target_msg = event.raw_message;
-                    state.target_cnt = 1;
-                }
-            }
-        }
-        Ok(())
-    }
-    async fn do_repeat(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
-        let mut state = self.state.write().await;
-        if let Some(ref msg) = state.target_msg {
-            let new_msg = event.raw_message.as_ref().unwrap();
-            if new_msg == msg && state.target_cnt >= self.config.threshold {
-                bot.api_request(
-                    "send_group_msg",
-                    json!({
-                        "group_id": event.group_id.unwrap(),
-                        "message": new_msg,
-                    }),
-                )
-                .await?;
-                state.target_msg = None;
-                state.target_cnt = 0;
-            }
-        }
-        let now_timestamp = chrono::Utc::now().timestamp();
-        state.last_msg_timestamp = now_timestamp;
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
@@ -101,6 +53,11 @@ impl Plugin for RepeatPlugin {
                         let now_timestamp = chrono::Utc::now().timestamp();
                         let state = self.state.read().await;
                         if now_timestamp - state.last_msg_timestamp < self.config.sleep_seconds {
+                            debug!(
+                                "plugin sleeping. {} seconds remaining. returning...",
+                                self.config.sleep_seconds + state.last_msg_timestamp
+                                    - now_timestamp
+                            );
                             return Ok(());
                         }
                     }
@@ -110,5 +67,56 @@ impl Plugin for RepeatPlugin {
             },
             _ => Ok(()),
         }
+    }
+}
+
+impl RepeatPlugin {
+    pub fn new(config: Option<RepeatPluginConfig>) -> Self {
+        RepeatPlugin {
+            state: RwLock::new(Default::default()),
+            config: config.unwrap_or_default(),
+        }
+    }
+    async fn set_state(&self, event: CQEvent) -> Result<(), Box<dyn Error + Send>> {
+        let mut state = self.state.write().await;
+        match state.target_msg {
+            None => {
+                state.target_msg = event.raw_message;
+                state.target_cnt = 1;
+                debug!("state: {:?}", state);
+            }
+            Some(ref msg) => {
+                let new_msg = event.raw_message.as_ref().unwrap();
+                if new_msg == msg {
+                    state.target_cnt += 1;
+                } else {
+                    state.target_msg = event.raw_message;
+                    state.target_cnt = 1;
+                }
+                debug!("state: {:?}", state);
+            }
+        }
+        Ok(())
+    }
+    async fn do_repeat(&self, event: CQEvent, bot: &Bot) -> Result<(), Box<dyn Error + Send>> {
+        let mut state = self.state.write().await;
+        if let Some(ref msg) = state.target_msg {
+            let new_msg = event.raw_message.as_ref().unwrap();
+            if new_msg == msg && state.target_cnt >= self.config.threshold {
+                bot.api_request(
+                    "send_group_msg",
+                    json!({
+                        "group_id": event.group_id.unwrap(),
+                        "message": new_msg,
+                    }),
+                )
+                .await?;
+                state.target_msg = None;
+                state.target_cnt = 0;
+                let now_timestamp = chrono::Utc::now().timestamp();
+                state.last_msg_timestamp = now_timestamp;
+            }
+        }
+        Ok(())
     }
 }

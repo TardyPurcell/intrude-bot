@@ -43,10 +43,7 @@ impl Bot {
     pub async fn run(&self) {
         loop {
             let event = self.event_receiver.lock().await.recv().await.unwrap();
-            match self.handle_help(event.clone()).await {
-                Ok(_) => (),
-                Err(_) => (),
-            }
+            self.handle_help(event.clone()).await.ok();
             for plugin in &self.plugins {
                 let self_cln = self;
                 let evt_cln = event.clone();
@@ -106,7 +103,7 @@ impl Bot {
                 for plugin in self.plugins.iter() {
                     if plugin.senario() == message_type || plugin.senario() == PluginSenario::Both {
                         resp.push_str(
-                            format!("{:10}:\t{}\r\n", plugin.name(), plugin.description()).as_str(),
+                            format!("{:10}\t{}\r\n", plugin.name(), plugin.description()).as_str(),
                         );
                     }
                 }

@@ -12,3 +12,5 @@ mod hokp;
 pub use hokp::*;
 mod repeat;
 pub use repeat::*;
+mod integral;
+pub use integral::*;

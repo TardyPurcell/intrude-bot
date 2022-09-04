@@ -48,6 +48,7 @@ async fn main() {
     bot.register_plugin(RandintPlugin::new(cfg.plugins.randint));
     bot.register_plugin(HOKpPlugin::new(cfg.plugins.hokp));
     bot.register_plugin(RepeatPlugin::new(cfg.plugins.repeat));
+    bot.register_plugin(IntegralPlugin::new(cfg.plugins.integral).await);
 
     let bot_thread = tokio::spawn(async move {
         bot.run().await;

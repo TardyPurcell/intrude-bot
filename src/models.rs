@@ -4,8 +4,8 @@ use std::error::Error;
 use crate::{
     bot::{Bot, BotConfig},
     plugins::{
-        ArchivePluginConfig, EchoPluginConfig, HOKpPluginConfig, QuestionPluginConfig,
-        RandintPluginConfig, RepeatPluginConfig, SaucePluginConfig,
+        ArchivePluginConfig, EchoPluginConfig, HOKpPluginConfig, IntegralPluginConfig,
+        QuestionPluginConfig, RandintPluginConfig, RepeatPluginConfig, SaucePluginConfig,
     },
 };
 
@@ -18,6 +18,7 @@ pub struct PluginsConfig {
     pub randint: Option<RandintPluginConfig>,
     pub hokp: Option<HOKpPluginConfig>,
     pub repeat: Option<RepeatPluginConfig>,
+    pub integral: Option<IntegralPluginConfig>,
 }
 
 #[derive(Default, Deserialize, Serialize)]
