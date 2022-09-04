@@ -102,7 +102,7 @@ impl IntegralPlugin {
             let list = self.ranking(group_id, bot).await?;
             let mut msg = String::new();
             let mut previous = Duration::zero();
-            let mut ranking = 0;
+            let mut ranking = 1;
             for (index, entry) in list.iter().enumerate() {
                 let user_info = bot
                     .api_request(
@@ -124,7 +124,7 @@ impl IntegralPlugin {
                     _ => user_info.nickname,
                 };
                 if entry.score != previous {
-                    ranking = index;
+                    ranking = 1 + index;
                     previous = entry.score;
                 }
                 msg.push_str(
