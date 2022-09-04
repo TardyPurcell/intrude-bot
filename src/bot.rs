@@ -103,7 +103,7 @@ impl Bot {
                 for plugin in self.plugins.iter() {
                     if plugin.senario() == message_type || plugin.senario() == PluginSenario::Both {
                         resp.push_str(
-                            format!("{:10}:\t{}\r\n", plugin.name(), plugin.description()).as_str(),
+                            format!("{:10}\t{}\r\n", plugin.name(), plugin.description()).as_str(),
                         );
                     }
                 }
