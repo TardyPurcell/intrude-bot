@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error};
+use std::error::Error;
 
 use chrono::{Duration, Local, NaiveDateTime};
 use regex::Regex;
@@ -120,8 +120,8 @@ impl IntegralPlugin {
                     .unwrap()
                     .data;
                 let user_name = match user_info.card {
-                    None => user_info.nickname.unwrap(),
-                    Some(name) => name,
+                    name if name.as_str() != "" => name,
+                    _ => user_info.nickname,
                 };
                 if entry.score != previous {
                     ranking = index;
@@ -169,10 +169,19 @@ impl IntegralPlugin {
             .unwrap()
             .data;
         let user_name = match user_info.card {
-            None => user_info.nickname.unwrap(),
-            Some(name) => name,
+            name if name.as_str() != "" => name,
+            _ => user_info.nickname,
         };
-        let msg = format!("{} 已戒导 {}", user_name, Self::duration_to_string(res));
+        let mut resp = String::new();
+        if let Cmd::Punch = cmd {
+            resp = "打卡成功。".to_string();
+        }
+        let msg = format!(
+            "{} {}已戒导 {}",
+            user_name,
+            resp,
+            Self::duration_to_string(res)
+        );
         bot.api_request(
             "send_group_msg",
             json!({
@@ -259,8 +268,8 @@ impl IntegralPlugin {
         let mut ret: Vec<RankingListEntry> = Vec::new();
         for entry in member_list {
             ret.push(RankingListEntry {
-                user_id: entry.user_id.unwrap(),
-                score: self.status(entry.user_id.unwrap()).await,
+                user_id: entry.user_id,
+                score: self.status(entry.user_id).await,
             });
         }
         ret.sort_by(|a, b| b.score.cmp(&a.score));
@@ -351,9 +360,9 @@ struct UserDataExtractor {
 
 #[derive(Deserialize)]
 struct UserData {
-    nickname: Option<String>,
-    card: Option<String>,
-    user_id: Option<i64>,
+    nickname: String,
+    card: String,
+    user_id: i64,
 }
 #[derive(Deserialize)]
 struct MemberListExtractor {
